@@ -1,0 +1,232 @@
+*&---------------------------------------------------------------------*
+*& Report ZEMP_ALV_K
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zemp_alv_k.
+
+DATA : it_emp TYPE TABLE OF  zemp_k,
+       wa_emp TYPE zemp_k.
+
+SELECT * FROM zemp_k INTO TABLE it_emp.
+
+
+DATA:it_fcat    TYPE lvc_t_fcat,
+     wa_fcat    LIKE LINE OF it_fcat,
+     wa_layout  TYPE lvc_s_layo,
+     wa_variant TYPE disvariant,
+     wa_grid    TYPE lvc_s_glay.
+
+
+
+
+wa_fcat-col_pos = '1'.
+*wa_fcat-hotspot = 'X'.
+wa_fcat-coltext = 'Employee Id'.
+wa_fcat-fieldname = 'EMPID'.
+wa_fcat-key = 'X'.
+*wa_fcat-edit = 'X'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+
+
+wa_fcat-col_pos = '2'.
+*wa_fcat-hotspot = 'X'.
+wa_fcat-coltext = 'Employee Name'.
+wa_fcat-fieldname = 'NAME'.
+*wa_fcat-edit = 'X'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+
+
+wa_fcat-col_pos = '3'.
+*wa_fcat-hotspot = 'X'.
+wa_fcat-coltext = 'Age'.
+wa_fcat-fieldname = 'AGE'.
+*wa_fcat-edit = 'X'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+
+
+CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY_LVC'
+  EXPORTING
+*   I_INTERFACE_CHECK        = ' '
+*   I_BYPASSING_BUFFER       =
+*   I_BUFFER_ACTIVE          =
+    i_callback_program       = sy-repid
+    i_callback_pf_status_set = 'PF_STATUS'
+    i_callback_user_command  = 'USR_CMD'
+*   I_CALLBACK_TOP_OF_PAGE   = ' '
+*   I_CALLBACK_HTML_TOP_OF_PAGE       = ' '
+*   I_CALLBACK_HTML_END_OF_LIST       = ' '
+*   I_STRUCTURE_NAME         =
+*   I_BACKGROUND_ID          = ' '
+*   I_GRID_TITLE             =
+*   I_GRID_SETTINGS          =
+    is_layout_lvc            = wa_layout
+    it_fieldcat_lvc          = it_fcat[]
+*   IT_EXCLUDING             =
+*   IT_SPECIAL_GROUPS_LVC    =
+*   IT_SORT_LVC              =
+*   IT_FILTER_LVC            =
+*   IT_HYPERLINK             =
+*   IS_SEL_HIDE              =
+    i_default                = 'X'
+    i_save                   = 'A'
+    is_variant               = wa_variant
+*   IT_EVENTS                =
+*   IT_EVENT_EXIT            =
+*   IS_PRINT_LVC             =
+*   IS_REPREP_ID_LVC         =
+*   I_SCREEN_START_COLUMN    = 0
+*   I_SCREEN_START_LINE      = 0
+*   I_SCREEN_END_COLUMN      = 0
+*   I_SCREEN_END_LINE        = 0
+*   I_HTML_HEIGHT_TOP        =
+*   I_HTML_HEIGHT_END        =
+*   IT_ALV_GRAPHICS          =
+*   IT_EXCEPT_QINFO_LVC      =
+*   IR_SALV_FULLSCREEN_ADAPTER        =
+* IMPORTING
+*   E_EXIT_CAUSED_BY_CALLER  =
+*   ES_EXIT_CAUSED_BY_USER   =
+  TABLES
+    t_outtab                 = it_emp
+  EXCEPTIONS
+    program_error            = 1
+    OTHERS                   = 2.
+IF sy-subrc <> 0.
+* Implement suitable error handling here
+ENDIF.
+
+
+
+
+
+FORM PF_STATUS USING rt_extab TYPE slis_t_extab.
+
+  SET PF-STATUS 'INSERT'.
+*  SET PF-STATUS 'SAVE'.
+
+ENDFORM.
+
+FORM usr_cmd USING r_ucomm LIKE sy-ucomm
+       rs_selfield TYPE slis_selfield.
+*
+  IF r_ucomm = 'INSERT'.
+    CLEAR wa_emp.
+    APPEND wa_emp TO it_emp.
+
+*    IF wa_fcat-fieldname = 'EMPID'.
+*      wa_fcat-key = 'X'.
+*
+*    ENDIF.
+
+    wa_layout-edit = 'X'.
+    wa_fcat-edit = 'X'.
+    wa_fcat-ref_table = 'ZEMP_K'.
+
+
+    CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY_LVC'
+      EXPORTING
+        i_callback_program       = sy-repid
+        i_callback_pf_status_set = 'PF_STATUS'
+        i_callback_user_command  = 'USR_CMD'
+        is_layout_lvc            = wa_layout
+        it_fieldcat_lvc          = it_fcat[]
+        i_default                = 'X'
+        i_save                   = 'A'
+        is_variant               = wa_variant
+      TABLES
+        t_outtab                 = it_emp
+      EXCEPTIONS
+        program_error            = 1
+        OTHERS                   = 2.
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+
+
+  ENDIF.
+
+
+  DATA: lo_grid TYPE REF TO cl_gui_alv_grid.
+
+  IF r_ucomm = 'SAVE'.
+
+    CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+      IMPORTING
+        e_grid = lo_grid.
+
+   IF lo_grid IS BOUND.
+  TRY.
+      CALL METHOD lo_grid->check_changed_data.
+    CATCH cx_root INTO DATA(e_text).
+      MESSAGE e_text->get_text( ) TYPE 'E'.
+  ENDTRY.
+ENDIF.
+
+
+
+
+    LOOP AT it_emp INTO wa_emp.
+      IF wa_emp-empid IS NOT INITIAL.
+        SELECT SINGLE * FROM zemp_k INTO @DATA(ls_existing) WHERE empid = @wa_emp-empid.
+        IF sy-subrc = 0.
+
+          UPDATE zemp_k SET name = @wa_emp-name , age = @wa_emp-age WHERE empid = @wa_emp-empid.
+          IF sy-subrc = 0.
+            WRITE: / 'Updated:', wa_emp-empid.
+          ELSE.
+            WRITE: / 'Update failed:', wa_emp-empid.
+          ENDIF.
+        ELSE.
+
+          INSERT zemp_k FROM wa_emp.
+          IF sy-subrc = 0.
+            WRITE: / 'Inserted:', wa_emp-empid.
+          ELSE.
+            WRITE: / 'Insert failed:', wa_emp-empid.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+      CLEAR wa_emp.
+    ENDLOOP.
+
+    COMMIT WORK.
+    MESSAGE 'Data saved to ZEMP_K table' TYPE 'S'.
+  ENDIF.
+
+IF r_ucomm = 'BACK'.
+*    LEAVE TO SCREEN 0.
+    LEAVE PROGRAM.
+  ENDIF.
+
+  IF r_ucomm = 'DELETE'.
+
+  READ TABLE it_emp INTO wa_emp INDEX rs_selfield-tabindex.
+  IF sy-subrc = 0 AND wa_emp-empid IS NOT INITIAL.
+
+
+    DELETE FROM zemp_k WHERE empid = @wa_emp-empid.
+    IF sy-subrc = 0.
+      MESSAGE |Employee ID { wa_emp-empid } deleted successfully.| TYPE 'S'.
+    ELSE.
+      MESSAGE |Delete failed for Employee ID { wa_emp-empid }.| TYPE 'E'.
+    ENDIF.
+
+
+    DELETE it_emp INDEX rs_selfield-tabindex.
+    rs_selfield-refresh = 'X'.
+
+  ELSE.
+    MESSAGE 'No row selected or missing EMPID.' TYPE 'E'.
+  ENDIF.
+
+ENDIF.
+
+
+ENDFORM.
