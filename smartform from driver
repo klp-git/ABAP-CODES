@@ -1,0 +1,377 @@
+*&---------------------------------------------------------------------*
+*& Report ZPRE_INSPECTION_REP_COPY2
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zpre_inspection_rep_copy2.
+
+TABLES : qals , qamr, qamv , qmtt , kna1.
+
+
+SELECTION-SCREEN : BEGIN OF BLOCK b1 WITH FRAME.
+  PARAMETERS : insplot TYPE qals-prueflos OBLIGATORY.
+  PARAMETERS : Frame_No TYPE char20.
+  PARAMETERS : Inv_No TYPE char20.
+  PARAMETERS : IR_no TYPE char20.
+  PARAMETERS : Core_len TYPE char20.
+  PARAMETERS : ins_qty TYPE char20.
+  PARAMETERS : it_code TYPE qals-matnr.
+
+*  SELECT-OPTIONS : inspdt FOR  qamr-pruefdatuv. "OBLIGATORY.
+
+SELECTION-SCREEN : END OF BLOCK b1.
+
+TYPES : BEGIN OF st_head,
+          cust     TYPE qals-selkunnr,
+          p_desc   TYPE qals-ktextmat,
+          item_cd  TYPE qals-matnr,
+          insp_lot TYPE qals-prueflos,
+          insp_dt  TYPE qamr-pruefdatuv,
+          inv_no   TYPE vbep-repos,
+          name1    TYPE kna1-name1,
+          selmatnr TYPE qals-selmatnr,
+          groes    TYPE mara-groes,
+
+        END OF st_head.
+
+
+TYPES : BEGIN OF st_line ,
+          para           TYPE qamv-kurztext,
+          target         TYPE p DECIMALS 10,
+          ucl            TYPE p DECIMALS 10,
+          lcl            TYPE p DECIMALS 10,
+          pmethode       TYPE qamv-pmethode,
+          verwmerkm      TYPE qamv-verwmerkm,
+          original_input TYPE qamr-original_input,
+          IN_method      TYPE qmtt-kurztext, "qamv-pmethode,
+          observations   TYPE qamr-original_input,
+          obs_2          TYPE qamr-original_input,
+          obs_3          TYPE qamr-original_input,
+          obs_4          TYPE qamr-original_input,
+          obs_5          TYPE qamr-original_input,
+          sl_no          TYPE i,
+          short_text     TYPE QPCt-kurztext,
+          obs_final      TYPE char50,
+          merknr         TYPE qamv-merknr,
+          stellen        TYPE qamv-stellen,
+
+          target_new     TYPE string,
+          ucl_new        TYPE string,
+          lcl_new        TYPE string,
+        END OF st_line.
+
+TYPES: BEGIN OF st_manual,
+         Frame_No TYPE char30,
+         Inv_No   TYPE char30,
+         IR_no    TYPE char30,
+         Core_len TYPE char30,
+         it_code  TYPE qals-matnr,
+         ins_qty  TYPE qals-matnr,
+       END OF st_manual.
+
+DATA: wa_manual TYPE st_manual.
+wa_manual-core_len = Core_len.
+wa_manual-frame_no = frame_no.
+wa_manual-inv_no = inv_no.
+wa_manual-ir_no = ir_no.
+wa_manual-it_code = it_code.
+wa_manual-ins_qty = ins_qty.
+
+
+DATA : it_header TYPE TABLE OF st_head,
+       wa_header TYPE st_head,
+       it_line   TYPE TABLE OF st_line,
+       wa_line   TYPE st_line.
+
+*DATA : obs TYPE zdec.
+
+*DATA : deci TYPE p DECIMALS 2 VALUE '0.01'.
+DATA : deci TYPE p DECIMALS 5.
+
+
+SELECT a~selkunnr AS cust ,
+   a~ktextmat AS p_desc,
+  "a~matnr as item_cd,
+  a~prueflos AS insp_lot ,
+   b~pruefdatuv AS insp_dt,
+   c~repos AS inv_no,
+   k~name1 AS name1,
+  a~selmatnr AS selmatnr,
+   m~groes AS groes
+  FROM qals AS a
+  LEFT  JOIN qamr AS b  ON a~prueflos = b~prueflos
+   LEFT  JOIN vbep AS c ON a~kdauf = c~vbeln AND a~kdpos = c~posnr
+  LEFT JOIN kna1 AS k ON a~kunnr = k~kunnr
+  LEFT JOIN mara AS m ON a~selmatnr = m~matnr
+  INTO CORRESPONDING FIELDS OF TABLE  @it_header WHERE a~prueflos = @insplot." AND b~pruefdatuv IN @inspdt.
+
+*sort it_header by insp_dt DESCENDING.
+DELETE ADJACENT DUPLICATES FROM it_header COMPARING ALL FIELDS.
+
+*READ TABLE it_header INTO wa_header WITH KEY insp_lot = insplot insp_dt = inspdt-low.
+READ TABLE it_header INTO wa_header INDEX 1.
+wa_header-item_cd = it_code.
+
+
+
+SELECT a~kurztext AS para ,  a~sollwert AS target , a~toleranzob AS ucl,
+    a~toleranzun AS lcl, a~pmethode  , a~verwmerkm, a~merknr ,a~stellen,
+   b~original_input AS observations ,c~kurztext AS IN_method, d~kurztext AS short_text
+  FROM qamv AS a
+  LEFT JOIN qamr AS b ON a~prueflos = b~prueflos AND a~vorglfnr = b~vorglfnr AND a~merknr = b~merknr
+  LEFT JOIN qmtt AS c ON  a~pmethode  = c~pmtnr AND a~qmtb_werks = c~werks AND c~sprache = 'E' AND a~pmtversion = c~version
+  LEFT JOIN qpct AS d ON b~katalgart1 = d~katalogart AND b~gruppe1 = d~codegruppe AND b~code1 = d~code    """"""""""""""" modified by AP""""""""""""""""
+  INTO CORRESPONDING FIELDS OF TABLE @it_line WHERE a~prueflos = @insplot. "AND b~pruefdatuv IN @inspdt.
+
+
+
+
+DELETE ADJACENT DUPLICATES FROM it_line COMPARING ALL FIELDS.
+
+SORT it_line BY merknr ASCENDING.
+
+
+*BREAK-POINT.
+DATA : prev TYPE i VALUE 0.
+
+*obs = wa_line-observations.
+LOOP AT it_line INTO wa_line.
+*  delete it_line where lcl = 0 and ucl = 0 and target = 0.
+*  IF wa_line-observations IS NOT INITIAL.
+  deci = '0.001'.
+  DATA: lv_result TYPE dd01v-datatype,
+        in_string TYPE qamr-original_input.
+  in_string = wa_line-observations * 100000.
+
+  IF wa_line-observations IS NOT INITIAL.
+    CALL FUNCTION 'NUMERIC_CHECK'
+      EXPORTING
+        string_in = in_string
+      IMPORTING
+*       STRING_OUT       =
+        htype     = lv_result.
+  ELSE.
+    lv_result = 'CHAR'.
+  ENDIF.
+  DEFINE DecCal.
+    IF &1 = wa_line-verwmerkm.
+      deci = &2.
+    ENDIF.
+  END-OF-DEFINITION.
+
+  DecCal '00020001' '0.02'.
+  DecCal '00020002' '0.03'.
+  DecCal '00020003' '0.02'.
+  DecCal '00020006' '0.01'.
+  DecCal '00020007' '0.01'.
+  DecCal '00020008' '0.20'.
+  DecCal '00020009' '0.02'.
+  DecCal '00020010' '0.02'.
+  DecCal '00020011' '0.10'.
+  DecCal '00020012' '0.01'.
+  DecCal '00020013' '0.01'.
+  DecCal '00020014' '0.01'.
+  DecCal '00020020' '0.02'.
+  DecCal '00020021' '0.01'.
+  DecCal '00020022' '0.02'.
+  DecCal '00020024' '0.1'.
+  DecCal '00020025' '0.01'.
+  DecCal '00020026' '0.02'.
+  DecCal '00020027' '0.01'.
+  DecCal '00020029' '0.02'.
+  DecCal '00020030' '0.03'.
+  DecCal '00020031' '0.01'.
+  DecCal '00020032' '0.15'.
+  DecCal '00020033' '0.02'.
+  DecCal '00020038' '0.01'.
+  DecCal '00020040' '0.02'.
+  DecCal '00020041' '0.02'.
+  DecCal '00020042' '0.1'.
+  DecCal '00020043' '0.1'.
+  DecCal '00020051' '0.02'.
+  DecCal '00020053' '0.005'.
+  DecCal '00020054' '0.005'.
+  DecCal '00020055' '0.005'.
+  DecCal '00020057' '0.13'.
+  DecCal '00020061' '0.01'.
+  DecCal '00020063' '0.01'.
+  DecCal '00020064' '0.02'.
+  DecCal '00020065' '0.02'.
+  DecCal '00020067' '0.02'.
+  DecCal '00020072' '0.02'.
+  DecCal '00020073' '0.02'.
+  DecCal '00020074' '0.02'.
+  DecCal '00020075' '0.02'.
+  DecCal '00020082' '0.01'.
+  DecCal '00020083' '0.01'.
+  DecCal '00020085' '0.02'.
+  DecCal '00020086' '0.01'.
+  DecCal '00020089' '0.01'.
+  DecCal '00020091' '0.02'.
+  DecCal '00020099' '0.01'.
+  DecCal '00020101' '0.01'.
+
+
+
+  IF lv_result = 'NUMC'.
+    wa_line-obs_2 =   wa_line-observations  + deci.
+    wa_line-obs_3 =  wa_line-observations.
+    wa_line-obs_4 =  wa_line-observations - deci.
+    wa_line-obs_5 =  wa_line-observations.
+  ELSEIF lv_result = 'CHAR'.
+    wa_line-observations = wa_line-short_text.                   """"""" behave as a observation1 modified by AP"""""""""""""
+    wa_line-obs_2 = wa_line-short_text.
+    wa_line-obs_3 =  wa_line-short_text.
+    wa_line-obs_4 =  wa_line-short_text.
+    wa_line-obs_5 =  wa_line-short_text.
+  ENDIF.
+
+*  ENDIF.
+  wa_line-sl_no = prev + 1.
+  prev = prev + 1.
+
+
+  IF WA_line-verwmerkm = '00010005'.
+    wa_line-obs_final = 'CHECKED AND FOUND OK'.
+  ELSEIF WA_line-verwmerkm = '00020100'.
+    wa_line-obs_final = 'MTC ATTACHED'.
+  ELSEIF  WA_line-verwmerkm = '00010006'.
+    wa_line-obs_final = 'CHECKED AND FOUND OK'.
+
+  ELSEIF  WA_line-verwmerkm = '00020114'.
+    wa_line-obs_final = 'CHECKED AND FOUND OK'.
+
+  ELSEIF  WA_line-verwmerkm = '00020112'.
+    wa_line-obs_final = 'CHECKED AND FOUND OK'.
+
+
+  ELSEIF  WA_line-verwmerkm = '00020113'.
+    wa_line-obs_final = 'CHECKED AND FOUND OK'.
+
+
+
+  ELSEIF WA_line-verwmerkm ='00020102'.
+    wa_line-obs_final = 'EC'.
+  ELSEIF WA_line-verwmerkm ='00010001'.
+    wa_line-obs_final = 'CHECKED AND FOUND OK'.
+  ELSEIF WA_line-verwmerkm ='00020103'.
+    wa_line-obs_final = 'M.T.C ATTACHED'.
+  ELSEIF WA_line-verwmerkm ='00020104'.
+    wa_line-obs_final = 'M.T.C ATTACHED'.
+  ELSEIF WA_line-verwmerkm ='00020105'.
+    wa_line-obs_final = 'M.T.C ATTACHED'.
+  ELSEIF WA_line-verwmerkm ='00020106'.
+    wa_line-obs_final = 'M.T.C ATTACHED'.
+  ELSEIF WA_line-verwmerkm ='00020107'.
+    wa_line-obs_final = 'M.T.C ATTACHED'.
+  ELSEIF WA_line-verwmerkm ='00020108'.
+    wa_line-obs_final = 'M.T.C ATTACHED'.
+  ELSEIF WA_line-verwmerkm ='00020109'.
+    wa_line-obs_final = 'M.T.C ATTACHED'.
+
+
+  ENDIF.
+
+  IF  WA_line-verwmerkm ='00020018' OR WA_line-verwmerkm ='00010008' OR  WA_line-verwmerkm ='00020037' OR  WA_line-verwmerkm ='00020045'.
+    wa_line-observations = wa_line-observations.
+    wa_line-obs_2 = wa_line-observations.
+    wa_line-obs_3 = wa_line-observations.
+    wa_line-obs_4 = wa_line-observations.
+    wa_line-obs_5 = wa_line-observations.
+  ENDIF.
+
+*  IF wa_line-lcl = '0.000'.
+*    wa_line-lcl = ' '.
+*  ELSEIF  wa_line-target = '0.000'.
+*    wa_line-target = ' '.
+*  ELSEIF  wa_line-ucl = '0.000'.
+*    wa_line-ucl = ' '.   " Sets it to an empty value
+*  ENDIF.
+
+* wa_line-target = wa_line-target ROUND stellen DECIMALS.
+* field2 = field2 ROUND stellen DECIMALS.
+* field3 = field3 ROUND stellen DECIMALS .
+
+  wa_line-target_new = wa_line-target.
+  SHIFT wa_line-target_new LEFT DELETING LEADING '0'.
+  SHIFT wa_line-target_new RIGHT DELETING TRAILING '0'.
+  SHIFT wa_line-target_new RIGHT DELETING TRAILING '.'.
+
+  wa_line-lcl_new = wa_line-lcl.
+  SHIFT wa_line-lcl_new LEFT DELETING LEADING '0'.
+  SHIFT wa_line-lcl_new RIGHT DELETING TRAILING '0'.
+  SHIFT wa_line-lcl_new RIGHT DELETING TRAILING '.'.
+
+  wa_line-ucl_new = wa_line-ucl.
+  SHIFT wa_line-ucl_new LEFT DELETING LEADING '0'.
+  SHIFT wa_line-ucl_new RIGHT DELETING TRAILING '0'.
+  SHIFT wa_line-ucl_new RIGHT DELETING TRAILING '.'.
+
+
+  wa_line-target_new = |{ wa_line-target DECIMALS = wa_line-stellen }|.
+
+  wa_line-lcl_new = |{ wa_line-lcl DECIMALS = wa_line-stellen }|.
+
+  wa_line-ucl_new = |{ wa_line-ucl DECIMALS = wa_line-stellen }|.
+
+
+  MODIFY it_line FROM wa_line.
+  CLEAR lv_result.
+  CLEAR in_string.
+  CLEAR wa_line.
+  CLEAR deci.
+
+
+ENDLOOP.
+
+
+EXPORT wa_header it_line wa_manual TO  MEMORY ID 'data'.
+*
+DATA : formname      TYPE  tdsfname,
+       fm_name       TYPE  rs38l_fnam,
+       t_otf_from_fm TYPE ssfcrescl.
+*
+formname = 'ZPRE_DISPATCH_INSPECTION_COPY3'.
+*
+*
+CALL FUNCTION 'SSF_FUNCTION_MODULE_NAME'
+  EXPORTING
+    formname           = formname
+*   VARIANT            = ' '
+*   DIRECT_CALL        = ' '
+  IMPORTING
+    fm_name            = fm_name
+  EXCEPTIONS
+    no_form            = 1
+    no_function_module = 2
+    OTHERS             = 3.
+IF sy-subrc <> 0.
+* Implement suitable error handling here
+ENDIF.
+
+
+CALL FUNCTION fm_name
+* EXPORTING
+*   ARCHIVE_INDEX              =
+*   ARCHIVE_INDEX_TAB          =
+*   ARCHIVE_PARAMETERS         =
+*   CONTROL_PARAMETERS         = ls_control_params
+*   MAIL_APPL_OBJ              =
+*   MAIL_RECIPIENT             =
+*   MAIL_SENDER                =
+*   OUTPUT_OPTIONS             =
+*   USER_SETTINGS              = ls_output_options
+* IMPORTING
+*   DOCUMENT_OUTPUT_INFO       =
+*   JOB_OUTPUT_INFO            =
+*   JOB_OUTPUT_OPTIONS         =
+* EXCEPTIONS
+*   FORMATTING_ERROR           = 1
+*   INTERNAL_ERROR             = 2
+*   SEND_ERROR                 = 3
+*   USER_CANCELED              = 4
+*   OTHERS                     = 5
+  .
+IF sy-subrc <> 0.
+* Implement suitable error handling here
+ENDIF.

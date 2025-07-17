@@ -1,0 +1,32 @@
+*----------------------------------------------------------------------*
+***INCLUDE LYPATT_STS1F05.
+*----------------------------------------------------------------------*
+
+FORM create.
+  ypatt_sts1-crtd_on_dt = sy-datum.
+  ypatt_sts1-crtd_by = sy-uname.
+  ypatt_sts1-crtd_on_time = sy-uzeit.
+*  ypatt_sts1-chng_by = sy-uname.
+*  ypatt_sts1-chngd_on_dt = sy-datum.
+*  ypatt_sts1-time_of_chng = sy-uzeit.
+ENDFORM.
+
+FORM modify_event1.
+  TYPES: BEGIN OF typ_data.
+           INCLUDE STRUCTURE ypatt_sts1.
+           INCLUDE STRUCTURE vimtbflags.
+         TYPES: END OF typ_data.
+  FIELD-SYMBOLS <fs_data> TYPE typ_data.
+*  BREAK-POINT.
+  LOOP AT total ASSIGNING <fs_data> CASTING.
+    IF <fs_data>-vim_action = 'U'.
+      <fs_data>-time_of_chng = sy-uzeit.
+      <fs_data>-chng_by = sy-uname.
+      <fs_data>-chngd_on_dt = sy-datum.
+*      ypatt_sts1-time_of_chng = sy-uzeit.
+*      ypatt_sts1-chng_by = sy-uname.
+*      ypatt_sts1-chngd_on_dt = sy-datum.
+    ENDIF.
+  ENDLOOP.
+
+ENDFORM.

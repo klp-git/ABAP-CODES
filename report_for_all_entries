@@ -1,0 +1,560 @@
+*&---------------------------------------------------------------------*
+*& Report ZMSME_FOR_ALL_ENTRIES_K
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zmsme_for_all_entries_k.
+TABLES :rbkp , lfa1 , bp001 , acdoca , ekko , matdoc , likp ,
+        rseg , tp13t , makt .
+
+TYPES : BEGIN OF  ty_rbkp,
+          lifnr TYPE rbkp-lifnr,
+          xblnr TYPE rbkp-xblnr,
+          gjahr TYPE rbkp-gjahr,
+          bukrs TYPE rbkp-bukrs,
+          belnr TYPE rbkp-belnr,
+          bldat TYPE rbkp-bldat,
+          budat TYPE rbkp-budat,
+          rmwwr TYPE rbkp-rmwwr,
+          zbd1t TYPE rbkp-zbd1t,
+          stblg TYPE rbkp-stblg,
+        END OF ty_rbkp.
+
+TYPES : BEGIN OF ty_lfa1,
+          name1 TYPE lfa1-name1,
+          lifnr TYPE lfa1-lifnr,
+          ktokk TYPE lfa1-ktokk,
+
+        END OF ty_lfa1.
+
+
+TYPES :BEGIN OF ty_bp001 ,
+         group_d TYPE bp001-group_d,
+         partner TYPE bp001-partner,
+       END OF ty_bp001.
+
+TYPES : BEGIN OF ty_acdoca,
+          ebeln  TYPE acdoca-ebeln,
+          awref  TYPE acdoca-awref,
+          werks  TYPE acdoca-werks,
+          gjahr  TYPE acdoca-gjahr,
+          rbukrs TYPE acdoca-rbukrs,
+          belnr  TYPE acdoca-belnr,
+          augdt  TYPE acdoca-augdt,
+          koart  TYPE acdoca-koart,
+          augbl  TYPE acdoca-augbl,
+        END OF ty_acdoca.
+
+TYPES : BEGIN OF ty_ekko ,
+          bedat TYPE ekko-bedat,
+          ebeln TYPE ekko-ebeln,
+          bukrs TYPE ekko-bukrs,
+        END OF ty_ekko.
+
+
+TYPES : BEGIN OF ty_matdoc ,
+          mblnr     TYPE matdoc-mblnr,
+          lgort_sid TYPE matdoc-lgort_sid,
+          vbeln_im  TYPE matdoc-vbeln_im,
+          budat     TYPE matdoc-budat,
+          dmbtr     TYPE matdoc-dmbtr,
+          lfpos     TYPE matdoc-lfpos,
+          bukrs     TYPE matdoc-bukrs,
+          lfbnr     TYPE matdoc-lfbnr,
+          gjahr     TYPE matdoc-gjahr,
+        END OF ty_matdoc.
+
+TYPES : BEGIN OF ty_likp ,
+          lfdat TYPE likp-lfdat,
+          vbeln TYPE likp-vbeln,
+        END OF ty_likp.
+
+TYPES : BEGIN OF ty_rseg ,
+          lfbnr TYPE rseg-lfbnr,
+          gjahr TYPE rseg-gjahr,
+          bukrs TYPE rseg-bukrs,
+          belnr TYPE rseg-belnr,
+          lfpos TYPE rseg-lfpos,
+        END OF ty_rseg.
+
+TYPES : BEGIN OF ty_tp13t ,
+          group_d_t TYPE tp13t-group_d_t,
+        END OF ty_tp13t.
+
+
+
+TYPES :BEGIN OF ty_final ,
+         v_cod        TYPE rbkp-lifnr,
+         v_nam        TYPE lfa1-name1,
+         v_ty         TYPE lfa1-ktokk,
+         t_gp         TYPE bp001-group_d,
+         po_no        TYPE acdoca-ebeln,
+         po_dt        TYPE ekko-bedat,
+         inv_no       TYPE rbkp-xblnr,
+         inv_dt       TYPE rbkp-bldat,
+         gt_entry_no  TYPE matdoc-vbeln_im,
+         gt_entry_dt  TYPE likp-lfdat,
+         gt_entry_val TYPE rbkp-rmwwr,
+         mig_no       TYPE rseg-lfbnr,
+         mig_dt       TYPE matdoc-budat,
+         mig_val      TYPE matdoc-dmbtr,
+         mir_no       TYPE rbkp-belnr,
+         mir_dt       TYPE rbkp-budat,
+         mir_val      TYPE rbkp-rmwwr,
+         paym_doc_no  TYPE acdoca-augbl,
+         paym_dt      TYPE  acdoca-augdt,
+         plant        TYPE acdoca-werks,
+         lgort_sid    TYPE matdoc-lgort_sid,
+         stblg        TYPE rbkp-stblg,
+         lfpos        TYPE rseg-lfpos,
+         koart        TYPE acdoca-koart,
+         augbl        TYPE acdoca-augbl,
+         bukrs        TYPE rbkp-bukrs,
+
+*  -------------------------------------
+         am_pd        TYPE i,
+         paym_term    TYPE rbkp-zbd1t,
+         due_dt_msme  TYPE datum,
+         due_dt       TYPE datum,
+         pmt_del_days TYPE i,
+         due_am       TYPE i,
+         not_due_am   TYPE i,
+         ovr_due_am   TYPE i,
+         status       TYPE char20,
+       END OF ty_final.
+
+DATA : it_rbkp   TYPE TABLE OF ty_rbkp,
+       wa_rbkp   TYPE ty_rbkp,
+       it_lfa1   TYPE TABLE OF ty_lfa1,
+       wa_lfa1   TYPE ty_lfa1,
+       it_bp001  TYPE TABLE OF ty_bp001,
+       wa_bp001  TYPE ty_bp001,
+       it_acdoca TYPE TABLE OF ty_acdoca,
+       wa_acdoca TYPE ty_acdoca,
+       it_ekko   TYPE TABLE OF ty_ekko,
+       wa_ekko   TYPE ty_ekko,
+       it_matdoc TYPE TABLE OF ty_matdoc,
+       wa_matdoc TYPE ty_matdoc,
+       it_likp   TYPE TABLE OF ty_likp,
+       wa_likp   TYPE ty_likp,
+       it_rseg   TYPE TABLE OF ty_rseg,
+       wa_rseg   TYPE ty_rseg,
+       it_tp13t  TYPE TABLE OF ty_tp13t,
+       wa_tp13t  TYPE ty_tp13t,
+       it_final  TYPE TABLE OF ty_final,
+       wa_final  TYPE ty_final.
+
+DATA : date    TYPE datum,
+       lv_date TYPE datum.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
+SELECT-OPTIONS : rp_dt FOR date NO INTERVALS,
+ c_code FOR rbkp-bukrs,
+v_code FOR rbkp-lifnr,
+v_ty FOR lfa1-name1,
+tgp_msme FOR bp001-group_d,
+po_no FOR acdoca-ebeln,
+m_p_dt FOR rbkp-budat,
+i_no FOR rbkp-xblnr,
+p_dc_no FOR acdoca-awref,
+d_dt_me FOR lv_date,
+sta FOR makt-maktx.
+SELECTION-SCREEN END OF BLOCK b1.
+
+
+* it_rbkp
+SELECT lifnr ,
+  gjahr ,
+   bukrs ,
+   belnr ,
+   xblnr ,
+   bldat ,
+   budat ,
+   rmwwr ,
+  zbd1t , stblg  FROM rbkp INTO CORRESPONDING FIELDS OF TABLE @it_rbkp
+  WHERE lifnr IN @v_code AND
+  bukrs IN @c_code AND
+  xblnr IN @i_no AND
+  budat IN @m_p_dt.
+
+IF  it_rbkp IS NOT INITIAL.
+*  it_lfa1
+  SELECT name1 ,ktokk , lifnr FROM lfa1 INTO CORRESPONDING FIELDS OF TABLE  @it_lfa1
+    FOR ALL ENTRIES IN @it_rbkp WHERE lifnr = @it_rbkp-lifnr AND
+    name1 IN @v_ty.
+
+
+* it_bp001
+  SELECT a~group_d , a~partner , b~group_d_t FROM bp001 AS a
+    INNER JOIN tp13t AS b ON a~group_d = b~group_d
+    INTO CORRESPONDING FIELDS OF
+    TABLE @it_bp001 FOR ALL ENTRIES IN @it_rbkp WHERE
+    partner = @it_rbkp-lifnr AND a~group_d IN @tgp_msme.
+
+* it_acdoca
+  SELECT ebeln ,
+    awref ,
+    augdt ,
+    augbl ,
+    rbukrs ,
+    belnr ,
+    gjahr,
+    werks,
+    koart
+    FROM acdoca INTO CORRESPONDING FIELDS OF TABLE @it_acdoca
+    FOR ALL ENTRIES IN @it_rbkp WHERE awref = @it_rbkp-belnr AND
+    gjahr = @it_rbkp-gjahr AND rbukrs = @it_rbkp-bukrs
+    AND ebeln IN @po_no AND awref IN @p_dc_no.
+
+ENDIF.
+
+
+IF it_acdoca IS NOT  INITIAL .
+*  it_ekko
+  SELECT ebeln , bedat, bukrs
+    FROM ekko INTO CORRESPONDING FIELDS OF TABLE @it_ekko
+   FOR ALL ENTRIES IN @it_acdoca WHERE ebeln = @it_acdoca-ebeln
+    AND bukrs = @it_acdoca-rbukrs.
+
+
+
+* it_rseg
+  SELECT lfpos , lfbnr , gjahr , bukrs , belnr
+    FROM rseg INTO CORRESPONDING FIELDS OF TABLE @it_rseg
+    FOR ALL ENTRIES IN @it_rbkp WHERE
+    belnr = @it_rbkp-belnr
+    AND bukrs = @it_rbkp-bukrs
+    AND gjahr = @it_rbkp-gjahr.
+
+
+
+
+ENDIF.
+
+* it_matdoc
+IF  it_rseg IS NOT INITIAL.
+  SELECT vbeln_im , budat , dmbtr  , mblnr , lfpos , lgort_sid, bukrs,lfbnr
+    FROM matdoc INTO CORRESPONDING FIELDS OF TABLE @it_matdoc
+    FOR ALL ENTRIES IN @it_rseg WHERE lfpos = @it_rseg-lfpos
+    AND lfbnr = @it_rseg-lfbnr
+    AND bukrs = @it_rseg-bukrs.
+
+ENDIF.
+
+* it_likp
+IF  it_matdoc IS NOT INITIAL.
+  SELECT lfdat , vbeln FROM likp INTO CORRESPONDING FIELDS OF TABLE @it_likp
+    FOR ALL ENTRIES IN @it_matdoc WHERE vbeln = @it_matdoc-vbeln_im.
+
+
+ENDIF.
+
+SORT it_rbkp BY bukrs lifnr belnr gjahr.
+*SORT it_acdoca1 BY rbukrs belnr gjahr.
+SORT it_rseg BY bukrs belnr gjahr.
+SORT it_acdoca BY rbukrs belnr gjahr koart.
+SORT it_likp BY vbeln.
+SORT it_matdoc BY lfpos lfbnr vbeln_im.
+SORT it_ekko BY ebeln.
+SORT it_lfa1 BY lifnr.
+
+
+LOOP AT it_rbkp INTO wa_rbkp.
+  wa_final-v_cod = wa_rbkp-lifnr.
+  wa_final-inv_no = wa_rbkp-xblnr.
+  wa_final-inv_dt = wa_rbkp-bldat.
+  wa_final-mir_no = wa_rbkp-belnr.
+  wa_final-mig_dt = wa_rbkp-budat.
+  wa_final-mir_val = wa_rbkp-rmwwr.
+  wa_final-paym_term  = wa_rbkp-zbd1t.
+
+  READ TABLE it_lfa1 INTO wa_lfa1 WITH KEY lifnr = wa_rbkp-lifnr BINARY SEARCH.
+  wa_final-v_nam  = wa_lfa1-name1.
+  wa_final-v_ty = wa_lfa1-ktokk.
+
+
+  READ TABLE it_bp001 INTO wa_bp001 WITH  KEY partner = wa_rbkp-lifnr BINARY SEARCH.
+  wa_final-t_gp = wa_bp001-group_d.
+
+  READ TABLE it_acdoca INTO wa_acdoca WITH KEY
+  awref = wa_rbkp-belnr
+  gjahr = wa_rbkp-gjahr
+  rbukrs = wa_rbkp-bukrs BINARY SEARCH.
+  wa_final-po_no = wa_acdoca-ebeln.
+  wa_final-paym_doc_no = wa_acdoca-awref.
+  wa_final-paym_dt  = wa_acdoca-augdt.
+  wa_final-plant = wa_acdoca-werks.
+
+  READ TABLE it_rseg INTO wa_rseg WITH KEY
+   gjahr = wa_acdoca-gjahr
+    bukrs = wa_acdoca-rbukrs
+    belnr = wa_acdoca-belnr BINARY SEARCH.
+*
+
+  READ TABLE it_ekko INTO wa_ekko WITH  KEY
+  ebeln = wa_acdoca-ebeln
+  bukrs = wa_acdoca-rbukrs
+  BINARY SEARCH.
+  wa_final-po_dt = wa_ekko-bedat.
+
+  READ TABLE it_matdoc INTO wa_matdoc WITH KEY
+  lfpos = wa_rseg-lfpos
+  lfbnr = wa_rseg-lfbnr
+  bukrs = wa_rseg-bukrs BINARY SEARCH.
+  wa_final-gt_entry_no = wa_matdoc-vbeln_im.
+  wa_final-mig_dt  = wa_matdoc-budat.
+  wa_final-mig_val = wa_matdoc-dmbtr.
+  wa_final-lgort_sid = wa_matdoc-lgort_sid.
+
+  READ TABLE it_likp INTO wa_likp WITH KEY vbeln = wa_matdoc-vbeln_im.
+    if sy-subrc eq 0.
+      wa_final-gt_entry_dt = wa_likp-lfdat.
+    ENDIF.
+
+  APPEND wa_final TO it_final.
+  CLEAR wa_final.
+
+ENDLOOP.
+
+SORT it_final  ASCENDING.
+DELETE it_final WHERE stblg IS NOT INITIAL.
+DELETE ADJACENT DUPLICATES FROM it_final COMPARING  ALL FIELDS.
+
+
+LOOP AT  it_final INTO wa_final.
+
+  IF wa_final-plant IS NOT INITIAL.
+    wa_final-po_no = wa_final-po_no.
+
+  ENDIF.
+
+  IF  wa_final-po_no IS NOT INITIAL.
+    wa_final-po_dt  = wa_final-po_dt.
+
+  ENDIF.
+
+  IF wa_final-lfpos IS NOT INITIAL.
+    wa_final-mig_no = wa_final-mig_no.
+    wa_final-mig_dt = wa_final-mig_dt.
+
+  ENDIF.
+
+  IF  wa_final-lgort_sid IS NOT INITIAL.
+    wa_final-mig_val = wa_final-mig_val.
+
+  ENDIF.
+
+  IF wa_final-koart = 'K'.
+    wa_final-augbl = wa_final-augbl.
+    wa_final-paym_dt = wa_final-paym_dt.
+
+  ENDIF.
+
+  IF wa_final-augbl > 0.
+    wa_final-am_pd = wa_final-mir_val.
+
+  ENDIF.
+
+  wa_final-due_dt_msme = wa_final-gt_entry_dt + wa_final-paym_term.
+  wa_final-due_dt = wa_final-mir_dt + wa_final-paym_term.
+  wa_final-pmt_del_days = wa_final-paym_dt - wa_final-due_dt_msme.
+  wa_final-due_am = wa_final-mir_val - wa_final-am_pd.
+
+
+
+  IF  wa_final-due_dt_msme > sy-datum.
+    wa_final-not_due_am  = wa_final-mir_val - wa_final-am_pd.
+  ELSE.
+    wa_final-not_due_am  = 0.
+
+  ENDIF.
+
+  wa_final-ovr_due_am =  wa_final-due_am - wa_final-not_due_am.
+
+  IF  wa_final-due_am = 0.
+    wa_final-status = 'DUE'.
+  ELSE.
+    wa_final-status = 'Not DUE'.
+
+  ENDIF.
+
+
+  MODIFY it_final FROM wa_final.
+  CLEAR wa_final.
+
+
+ENDLOOP.
+
+*cl_demo_output=>display( it_final ).
+
+
+DATA:it_fcat TYPE slis_t_fieldcat_alv,
+     wa_fcat TYPE slis_fieldcat_alv.
+
+
+wa_fcat-seltext_l = 'PLANT'.
+wa_fcat-fieldname ='plant'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'Company Code'.
+wa_fcat-fieldname ='BUKRS'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'Vendor Code'.
+wa_fcat-fieldname ='v_cod'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'Vendor Name'.
+wa_fcat-fieldname ='v_nam'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'Vendor Type'.
+wa_fcat-fieldname ='v_ty'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'Target Group(Status of MSME)'.
+wa_fcat-fieldname ='t_gp'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'PO Number'.
+wa_fcat-fieldname ='po_no'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'PO Date'.
+wa_fcat-fieldname ='po_dt'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'Invoice No.'.
+wa_fcat-fieldname = 'inv_no'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'Invoice Date'.
+wa_fcat-fieldname ='inv_dt'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'Gate Entry No.'.
+wa_fcat-fieldname ='gt_entry_no'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'Gate Entry Date'.
+wa_fcat-fieldname ='gt_entry_dt'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+
+wa_fcat-seltext_l = 'Gate Entry Value'.
+wa_fcat-fieldname ='gt_entry_val'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'MIGO No'.
+wa_fcat-fieldname ='mig_no'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'MIGO Date'.
+wa_fcat-fieldname ='mig_dt'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'MIGO Value'.
+wa_fcat-fieldname ='mig_val'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'MIRO No'.
+wa_fcat-fieldname ='mir_no'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'MIRO Date'.
+wa_fcat-fieldname ='mir_dt'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'MIRO Value'.
+wa_fcat-fieldname = 'mir_val'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'Payment Doc No.'.
+wa_fcat-fieldname ='paym_doc_no'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'Payment Date'.
+wa_fcat-fieldname ='paym_dt'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'Amount paid'.
+wa_fcat-fieldname ='am_pd'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'Payment Term'.
+wa_fcat-fieldname ='paym_term'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'Due Date as per MSME'.
+wa_fcat-fieldname ='due_dt_msme'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'Due Date'.
+wa_fcat-fieldname ='due_dt'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'Payment Delays in Days'.
+wa_fcat-fieldname ='pmt_del_days'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'Due Amount'.
+wa_fcat-fieldname ='due_am'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'Not Due Amount'.
+wa_fcat-fieldname ='not_due_am'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+
+wa_fcat-seltext_l = 'Over Due Amount'.
+wa_fcat-fieldname ='ovr_due_am'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+wa_fcat-seltext_l = 'Status'.
+wa_fcat-fieldname ='status'.
+APPEND wa_fcat TO it_fcat.
+CLEAR wa_fcat.
+
+
+
+CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+  EXPORTING
+    i_callback_program = sy-repid
+    it_fieldcat        = it_fcat
+  TABLES
+    t_outtab           = it_final
+  EXCEPTIONS
+    program_error      = 1
+    OTHERS             = 2.
+*IF sy-subrc <> 0.
+* Implement suitable error handling here
+*ENDIF.

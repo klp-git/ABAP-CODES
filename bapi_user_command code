@@ -1,0 +1,189 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZMIGO_SCREEN_MP_K_USER_COMMO02.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*& Module USER_COMMAND_0100 OUTPUT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+MODULE user_command_0100 INPUT.
+
+*  DATA : wa_goodsmvt_header like bapi2017_gm_head_01,
+*         gm_code            like bapi2017_gm_code,
+*         materialdocument   like bapi2017_gm_head_ret-mat_doc,
+*         matdocumentyear    like bapi2017_gm_head_ret-doc_year,
+*         it_goodsmvt_item   like TABLE OF bapi2017_gm_item_create,
+*         wa_goodsmvt_item   like bapi2017_gm_item_create,
+*         it_return          like TABLE OF bapiret2,
+*         wait TYPE BAPITA-WAIT,
+*         return TYPE BAPIRET2.
+
+
+
+*  CL_DEMO_OUTPUT=>DISPLAY( DOC_NO ).
+
+  IF  sy-ucomm = 'BACK'.
+    LEAVE TO SCREEN 0.
+  ENDIF.
+
+  IF sy-ucomm = 'SUBMIT'.
+
+    SELECT * FROM zmigo_data
+      INTO CORRESPONDING FIELDS OF TABLE @it
+      WHERE docno = @zmigo_data-docno.
+
+  ENDIF.
+
+  IF sy-ucomm = 'POST'.
+*    BREAK-POINT.
+    LOOP AT it INTO wa.
+      IF wa-chk = 'X'.
+        wa_goodsmvt_header-pstng_date    = wa-postingdate.
+*        wa_goodsmvt_header-doc_date      = sy-datum.
+        gm_code-gm_code      = '04'.
+*       wa_goodsmvt_header-ref_doc_no = wa-docno.
+
+        wa_goodsmvt_item-move_type      = wa-MOV_TYP.
+        wa_goodsmvt_item-spec_stock      = wa-spl_stk.
+        wa_goodsmvt_item-plant          = wa-plant.
+        wa_goodsmvt_item-stge_loc       = wa-storagelocstock.
+        wa_goodsmvt_item-batch          = wa-batch.
+        wa_goodsmvt_item-material       = wa-material.
+        wa_goodsmvt_item-entry_qnt      = wa-qty.
+        wa_goodsmvt_item-entry_uom      = wa-unit.
+        wa_goodsmvt_item-move_mat = wa-material.
+        wa_goodsmvt_item-move_plant = wa-plant.
+        wa_goodsmvt_item-move_stloc = wa-storlocto.
+        wa_goodsmvt_item-move_batch = wa-batch.
+
+        wa_goodsmvt_item-quantity = wa-qty.
+*        wa_goodsmvt_item-costcenter     = wa-kostl.
+*        wa_goodsmvt_item-move_reas      = wa-grund.
+*       wa_goodsmvt_item-no_more_gr     = 'X'.
+
+        IF wa-spl_stk = 'E'.
+          wa_goodsmvt_item-sales_ord = wa-sal_doc.
+          wa_goodsmvt_item-s_ord_item = wa-sal_itm.
+          wa_goodsmvt_item-val_sales_ord = wa-sal_doc.
+          wa_goodsmvt_item-val_s_ord_item = wa-sal_itm.
+        ENDIF.
+
+        APPEND wa_goodsmvt_item TO it_goodsmvt_item.
+        CLEAR wa_goodsmvt_item.
+      ENDIF.
+
+    ENDLOOP.
+
+
+*      data: lv_random type i.
+
+*    CALL FUNCTION 'QF05_RANDOM_INTEGER'
+*      EXPORTING
+*        ran_int_max   = 100
+*        ran_int_min   = 1
+*      IMPORTING
+*        ran_int       = lv_random
+*      EXCEPTIONS
+*        invalid_input = 1
+*        OTHERS        = 2.
+*    IF sy-subrc <> 0.
+** Implement suitable error handling here
+*    ENDIF.
+*
+*
+*    LOOP AT it INTO wa.
+*      IF wa-chk = 'X'.
+*        wa_post-indexno = wa-indexno.
+*        wa_post-posting_no = lv_random.
+*        wa_post-plant = wa-plant.
+*        wa_post-material = wa-material.
+*        wa_post-batch = wa-batch.
+*        wa_post-storagelocstock = wa-storagelocstock.
+*        wa_post-storlocto = wa-storlocto.
+*        wa_post-postingdate = wa-postingdate.
+*        wa_post-docno = wa-docno.
+*        INSERT zmigo_post_data FROM wa_post.
+*
+*      ENDIF.
+*      CLEAR wa.
+*      CLEAR wa_post.
+*    ENDLOOP.
+*    MESSAGE 'materials succesfully posted' TYPE 'I'.
+*
+*
+*    CALL TRANSACTION 'MIGO' AND SKIP FIRST SCREEN.
+*    SET PARAMETER ID 'MBN' FIELD wa_post-posting_no.
+*
+*
+*
+*    cl_demo_output=>write( wa_goodsmvt_header ).
+*    cl_demo_output=>write( gm_code ).
+
+
+
+
+    CALL FUNCTION 'BAPI_GOODSMVT_CREATE'
+      EXPORTING
+        goodsmvt_header  = wa_goodsmvt_header
+        goodsmvt_code    = gm_code
+*       TESTRUN          = ' '
+*       GOODSMVT_REF_EWM =
+*       GOODSMVT_PRINT_CTRL           =
+      IMPORTING
+*       GOODSMVT_HEADRET =
+        materialdocument = materialdocument
+        matdocumentyear  = matdocumentyear
+      TABLES
+        goodsmvt_item    = it_goodsmvt_item
+*       GOODSMVT_SERIALNUMBER         =
+        return           = it_return
+*       GOODSMVT_SERV_PART_DATA       =
+*       EXTENSIONIN      =
+*       GOODSMVT_ITEM_CWM             =
+      .
+
+
+*CALL FUNCTION 'BAPI_GOODSMVT_CREATE'
+*  EXPORTING
+*    goodsmvt_header               = wa_goodsmvt_header
+*    goodsmvt_code                 = gm_code
+**   TESTRUN                       = ' '
+**   GOODSMVT_REF_EWM              =
+**   GOODSMVT_PRINT_CTRL           =
+* IMPORTING
+**   GOODSMVT_HEADRET              =
+*   MATERIALDOCUMENT              = materialdocument
+*   MATDOCUMENTYEAR               = matdocumentyear
+*  TABLES
+*    goodsmvt_item                 = it_goodsmvt_item
+**   GOODSMVT_SERIALNUMBER         =
+*    return                        = it_return
+**   GOODSMVT_SERV_PART_DATA       =
+**   EXTENSIONIN                   =
+**   GOODSMVT_ITEM_CWM             =
+*          .
+
+
+*     cl_demo_output=>write( it_goodsmvt_item ).
+*     cl_demo_output=>write( it_return ).
+
+
+    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+* EXPORTING
+*   WAIT          = wait
+* IMPORTING
+*   RETURN        = return
+      .
+
+    IF it_return IS INITIAL.
+      MESSAGE: materialdocument && ' TRANSFER POSTING DONE' TYPE 'S'.
+    ELSE.
+      cl_demo_output=>display( it_return ).
+    ENDIF.
+*    cl_demo_output=>display( it_return ).
+*    cl_demo_output=>display( it_goodsmvt_item ).
+
+*    MESSAGE 'MIGO succesfully Posted' TYPE 'I' .
+
+  ENDIF.
+ENDMODULE.

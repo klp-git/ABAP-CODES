@@ -1,0 +1,563 @@
+*&---------------------------------------------------------------------*
+*& Report ZMIGO_SCREEN_K
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zmigo_screen_k.
+
+TABLES : marc , mchb , mara ,t001l , t001w , mska.
+"t001w , t001l , marc, mchb , zmigo_data , mseg.
+
+
+
+TYPES : BEGIN OF str ,
+          "werks     TYPE marc-werks,
+          werks     TYPE t001w-werks,
+          matnr     TYPE marc-matnr,
+          charg     TYPE mchb-charg,
+          stock_loc TYPE t001l-lgort,
+
+          dt        TYPE datum,
+          toloc     TYPE t001l-lgort,
+          check     TYPE char1,
+          doc_no    TYPE i,
+          status    TYPE char1,
+          index     TYPE sy-tabix,
+          bwart     TYPE mseg-bwart, "movement type
+          sobkz     TYPE mseg-sobkz, "special stock
+*          kdauf     TYPE mseg-kdauf,
+*          kdpos     TYPE mseg-kdpos,
+*          kdein     TYPE mseg-kdein,
+          meins     TYPE mara-meins, "unit
+          qty       TYPE mard-labst,
+          vbeln     TYPE mska-vbeln, "sales doc
+          posnr     TYPE mska-posnr, "sales item
+        END OF str.
+
+*TYPES : BEGIN OF migo_str,
+*          plant             TYPE zplant,
+*          material          TYPE zmat,
+*          batch             TYPE zbatch,
+*          stock_storage_loc TYPE zstor_loc,
+*          to_stor_loc       TYPE zslocto,
+*          doc_no            TYPE zdoc_num,
+*          posting_date      TYPE zpdate,
+*
+*        END OF migo_str.
+
+SELECTION-SCREEN  BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-000.
+SELECT-OPTIONS : plant FOR marc-werks ,"OBLIGATORY,
+mat FOR  marc-matnr," OBLIGATORY,
+batch FOR mchb-charg,
+slf FOR t001l-lgort NO-EXTENSION NO INTERVALS.
+PARAMETERS : pdt TYPE sy-datum.
+
+SELECT-OPTIONS : slt FOR t001l-lgort NO-EXTENSION NO INTERVALS.
+
+
+SELECTION-SCREEN SKIP.
+
+PARAMETERS : p_rad1 RADIOBUTTON GROUP rd1 DEFAULT 'X'  USER-COMMAND rd1,
+             p_rad2 RADIOBUTTON GROUP rd1.
+
+
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+
+
+*AT SELECTION-SCREEN OUTPUT.
+*  IF p_rad1 = 'X'.
+*    LOOP AT SCREEN.
+*      IF screen-name = 'SAL_DOC' AND screen-name = 'SAL_ITM'.
+*        screen-active = '0'. " Disable the field
+*        MODIFY SCREEN.
+*
+*      ENDIF.
+*    ENDLOOP.
+*  ENDIF.
+
+*  IF p_rad2 = 'X'.
+*    LOOP AT SCREEN.
+*      IF screen-name = 'SAL_DOC' AND screen-name = 'SAL_ITM'.
+*        screen-active = '1'. " Disable the field
+*        MODIFY SCREEN.
+*      ENDIF.
+*
+*    ENDLOOP.
+*  ENDIF.
+*  SELECTION-SCREEN BEGIN OF BLOCK b2.
+*
+*  SELECT-OPTIONS : sal_doc FOR mska-vbeln,
+*  sal_itm FOR mska-posnr.
+*
+*  SELECTION-SCREEN END OF BLOCK b2.
+
+DATA : it      TYPE TABLE OF str,
+       wa      TYPE str,
+       wa_temp TYPE str.
+DATA : "it_migo TYPE TABLE OF migo_str,
+  wa_migo      LIKE zmigo_data,
+  lv_radio_sel TYPE char1.
+
+
+DATA : it_fcat   TYPE slis_t_fieldcat_alv,
+       wa_fcat   TYPE slis_fieldcat_alv,
+       lt_layout TYPE slis_layout_alv.
+
+DATA : lv_random TYPE i.
+
+
+
+
+*BREAK-POINT.
+
+
+
+START-OF-SELECTION.
+
+
+  CASE 'X'.
+    WHEN p_rad1.
+      SELECT a~werks,
+        c~matnr ,
+        d~charg,
+       "e~meins
+        b~lgort AS stock_loc
+       "e~vbeln,
+      " e~posnr
+       "m~bwart,
+       "m~sobkz,
+       "m~kdauf,
+      " m~kdpos,
+      " m~kdein
+       UP TO 100 ROWS
+       FROM t001w AS a
+       INNER JOIN marc AS c ON a~werks = c~werks "AND a~matnr = c~matnr
+       INNER JOIN mchb AS d ON a~werks = d~werks
+      "INNER JOIN mara AS e ON a~matnr = e~matnr
+       "AND a~matnr = d~matnr
+       INNER JOIN  t001l AS b ON a~werks = b~werks
+      " INNER JOIN mska AS e ON a~werks = e~werks
+       "INNER JOIN mseg AS m ON a~werks = m~werks
+       INTO CORRESPONDING FIELDS OF TABLE
+        @it WHERE
+        a~werks IN @plant
+       AND c~matnr IN @mat
+     AND d~charg IN @batch
+     AND b~lgort IN @slf.
+
+
+
+    WHEN p_rad2.
+      SELECT werks,
+         matnr ,
+         charg,
+        "e~meins
+         lgort AS stock_loc,
+        sobkz,
+        vbeln,
+        posnr
+        "m~bwart,
+        "m~sobkz,
+        "m~kdauf,
+       " m~kdpos,
+       " m~kdein
+        UP TO 100 ROWS
+        FROM mska
+       " INNER JOIN marc AS c ON a~werks = c~werks "AND a~matnr = c~matnr
+        "INNER JOIN mchb AS d ON a~werks = d~werks
+       "INNER JOIN mara AS e ON a~matnr = e~matnr
+        "AND a~matnr = d~matnr
+        "INNER JOIN  t001l AS b ON a~werks = b~werks
+        "INNER JOIN mska AS e ON a~werks = e~werks
+        "INNER JOIN mseg AS m ON a~werks = m~werks
+        INTO CORRESPONDING FIELDS OF TABLE
+         @it WHERE
+         werks IN @plant
+        AND matnr IN @mat
+      AND charg IN @batch
+      AND lgort IN @slf.
+
+  ENDCASE.
+
+  " AND (lv_radio_sel).
+  "AND m~bwart In @p_rad1
+  "AND m~sobkz in @p_rad2.
+
+*cl_demo_output=>display( wa-check ).
+
+**
+  SORT it BY werks.
+  DELETE ADJACENT DUPLICATES FROM it COMPARING ALL FIELDS.
+*
+  LOOP AT it INTO wa.
+    " wa-stock_loc = slf-low.
+    wa-toloc = slt-low.
+    wa-dt = sy-datum.
+    MODIFY it FROM wa.
+    CLEAR wa.
+
+*    IF .
+*
+*    ENDIF.
+  ENDLOOP.
+
+  IF p_rad1 = 'X'.
+*    lv_radio_sel = '1'.
+    LOOP AT it INTO wa.
+      wa-bwart = '311' .
+      wa-sobkz  = ' '.
+      MODIFY  it FROM wa.
+      CLEAR wa.
+    ENDLOOP.
+
+  ELSEIF p_rad2 = 'X'.
+*    lv_radio_sel = '2'.
+    LOOP AT it INTO wa.
+      wa-bwart = '311'.
+      wa-sobkz  = 'E'.
+      MODIFY  it FROM wa.
+      CLEAR wa.
+    ENDLOOP.
+  ENDIF.
+
+
+
+
+
+  wa_fcat-seltext_l = 'Select'.
+  wa_fcat-fieldname = 'CHECK'.
+*wa_fcat-tabname = 'IT'.
+*  wa_fcat-col_pos    = 1.
+  wa_fcat-checkbox = 'X'.
+  wa_fcat-edit      = 'X'.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-seltext_l = 'PLANT'.
+  wa_fcat-fieldname = 'WERKS'.
+*  wa_fcat-col_pos    = 2.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-seltext_l = 'Material'.
+  wa_fcat-fieldname = 'MATNR'.
+*  wa_fcat-col_pos    = 3.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-seltext_l = 'Batch'.
+  wa_fcat-fieldname = 'CHARG'.
+*  wa_fcat-col_pos    = 4.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+
+  wa_fcat-seltext_l = 'Storage Loc. From'.
+  wa_fcat-fieldname = 'stock_loc'.
+*  wa_fcat-col_pos    = 5.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-seltext_l = 'Storage Loc. To'.
+  wa_fcat-fieldname = 'toloc'.
+*  wa_fcat-col_pos    = 6.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-seltext_l = 'Document Number'.
+  wa_fcat-fieldname = 'DOC_NO'.
+  wa_fcat-tabname = 'IT'.
+*  wa_fcat-col_pos    = 7.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-seltext_l = 'Selected Line'.
+  wa_fcat-fieldname = 'CHECK'.
+  wa_fcat-tabname = 'IT'.
+*  wa_fcat-col_pos    = 8.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-seltext_l = 'Posting Date'.
+  wa_fcat-fieldname = 'DT'.
+*wa_fcat-tabname = 'IT'.
+*  wa_fcat-col_pos    = 9.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-seltext_l = 'Index'.
+  wa_fcat-fieldname = 'index'.
+*wa_fcat-tabname = 'IT'.
+*  wa_fcat-col_pos    = 10.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-seltext_l = 'Sales Document'.
+  wa_fcat-fieldname = 'VBELN'.
+*  wa_fcat-col_pos    = 11.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-seltext_l = 'Sales Order ITEM'.
+  wa_fcat-fieldname = 'POSNR'.
+*  wa_fcat-col_pos    = 12.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+*  wa_fcat-seltext_l = 'Sales Order Schedule'.
+*  wa_fcat-fieldname = 'KDEIN'.
+*  wa_fcat-col_pos    = 13.
+*  APPEND wa_fcat TO it_fcat.
+*  CLEAR wa_fcat.
+
+  wa_fcat-seltext_l = 'Movement type'.
+  wa_fcat-fieldname = 'BWART'.
+*  wa_fcat-col_pos    = 11.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-seltext_l = 'Special stock'.
+  wa_fcat-fieldname = 'SOBKZ'.
+*  wa_fcat-col_pos    = 12.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-seltext_l = 'Qty'.
+  wa_fcat-fieldname = 'qty'.
+  wa_fcat-edit      = 'X'.
+*  wa_fcat-col_pos    = 13.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+
+  wa_fcat-seltext_l = 'Unit'.
+  wa_fcat-fieldname = 'MEINS'.
+  wa_fcat-edit      = 'X'.
+*  wa_fcat-col_pos    = 14.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+
+
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+*     I_INTERFACE_CHECK        = ' '
+*     I_BYPASSING_BUFFER       = ' '
+*     I_BUFFER_ACTIVE          = ' '
+      i_callback_program       = sy-repid
+      i_callback_pf_status_set = 'PF_STATUS'
+      i_callback_user_command  = 'USER_CMD'
+*     I_CALLBACK_TOP_OF_PAGE   = ' '
+*     I_CALLBACK_HTML_TOP_OF_PAGE       = ' '
+*     I_CALLBACK_HTML_END_OF_LIST       = ' '
+*     I_STRUCTURE_NAME         =
+*     I_BACKGROUND_ID          = ' '
+*     I_GRID_TITLE             =
+*     I_GRID_SETTINGS          =
+      is_layout                = lt_layout
+      it_fieldcat              = it_fcat
+*     IT_EXCLUDING             =
+*     IT_SPECIAL_GROUPS        =
+*     IT_SORT                  =
+*     IT_FILTER                =
+*     IS_SEL_HIDE              =
+      i_default                = 'X'
+      i_save                   = ' '
+    TABLES
+      t_outtab                 = it
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+FORM pf_status USING rt_extab TYPE slis_t_extab.
+  SET PF-STATUS 'CREATE'.
+ENDFORM.
+
+FORM  user_cmd USING u LIKE sy-ucomm
+      v TYPE slis_selfield.
+
+  IF u = 'CREATE'.
+
+
+    DATA : lv_index TYPE i VALUE  0.
+    LOOP AT it INTO wa.
+      lv_index = lv_index + 1.
+      wa-index = lv_index.
+      MODIFY it FROM wa INDEX sy-tabix.
+    ENDLOOP.
+
+
+    DATA : is_stable TYPE lvc_s_stbl,
+           lcl_grid  TYPE REF TO cl_gui_alv_grid,
+           lcl_grid1 TYPE REF TO cl_gui_alv_grid.
+    "Refresh
+    is_stable-row = 'X'.
+    is_stable-col = 'X'.
+    IF lcl_grid IS INITIAL.
+      CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+        IMPORTING
+          e_grid = lcl_grid.
+    ENDIF.
+    IF NOT lcl_grid IS INITIAL.
+      CALL METHOD lcl_grid->check_changed_data.
+
+    ENDIF.
+*BREAK-POINT.
+*    LOOP AT it INTO wa.
+*      IF wa-check = 'X'.
+*        wa-status = 'X'.
+*
+*      ENDIF.
+*      MODIFY it FROM wa.
+*      CLEAR wa.
+*    ENDLOOP.
+
+
+*        READ TABLE it INTO wa INDEX v-tabindex.
+
+    CALL FUNCTION 'QF05_RANDOM_INTEGER'
+      EXPORTING
+        ran_int_max   = 100
+        ran_int_min   = 1
+      IMPORTING
+        ran_int       = lv_random
+      EXCEPTIONS
+        invalid_input = 1
+        OTHERS        = 2.
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+
+    MESSAGE 'Document No created' TYPE 'I'.
+  ENDIF.
+
+  LOOP AT it INTO wa.
+    IF wa-check = 'X'.
+*      wa-check = 'X'.
+
+*      wa-check-edit      = ' '.
+      IF wa-check = 'X' AND wa-doc_no IS INITIAL.
+        wa-doc_no = lv_random.
+
+      ENDIF.
+
+
+      IF sy-subrc = 0.
+        wa_migo-plant = wa-werks.
+        wa_migo-material = wa-matnr.
+        wa_migo-batch = wa-charg.
+        wa_migo-storagelocstock = wa-stock_loc.
+        wa_migo-storlocto = wa-toloc.
+        wa_migo-docno = wa-doc_no.
+        wa_migo-postingdate = wa-dt.
+        wa_migo-indexno = wa-index.
+        wa_migo-qty = wa-qty.
+        wa_migo-unit = wa-meins.
+        wa_migo-MOV_TYP = wa-bwart.
+        wa_migo-SPL_STK = wa-sobkz.
+        wa_migo-SAL_DOC = wa-vbeln.
+        wa_migo-sal_itm = wa-posnr.
+        INSERT zmigo_data FROM wa_migo.
+        CLEAR wa_migo.
+
+      ENDIF.
+
+
+    ENDIF.
+    MODIFY it FROM wa TRANSPORTING doc_no.
+    CLEAR wa.
+
+  ENDLOOP.
+
+
+*    BREAK-POINT.
+*    wa-doc_no = RAND() * 100.
+
+  IF lcl_grid1 IS INITIAL.
+    CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+      IMPORTING
+        e_grid = lcl_grid1.
+  ENDIF.
+  IF NOT lcl_grid1 IS INITIAL.
+    lcl_grid1->refresh_table_display(
+    EXPORTING
+      is_stable      =   is_stable
+    EXCEPTIONS
+      finished       = 1
+      OTHERS         = 2
+      ).
+  ENDIF.
+ENDFORM.
+*    CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+*      EXPORTING
+**       I_INTERFACE_CHECK        = ' '
+**       I_BYPASSING_BUFFER       = ' '
+**       I_BUFFER_ACTIVE          = ' '
+*        i_callback_program       = sy-repid
+*        i_callback_pf_status_set = 'PF_STATUS'
+*        i_callback_user_command  = 'USER_CMD'
+**       I_CALLBACK_TOP_OF_PAGE   = ' '
+**       I_CALLBACK_HTML_TOP_OF_PAGE       = ' '
+**       I_CALLBACK_HTML_END_OF_LIST       = ' '
+**       I_STRUCTURE_NAME         =
+**       I_BACKGROUND_ID          = ' '
+**       I_GRID_TITLE             =
+**       I_GRID_SETTINGS          =
+*        is_layout                = lt_layout
+*        it_fieldcat              = it_fcat
+**       IT_EXCLUDING             =
+**       IT_SPECIAL_GROUPS        =
+**       IT_SORT                  =
+**       IT_FILTER                =
+**       IS_SEL_HIDE              =
+*        i_default                = 'X'
+*        i_save                   = ' '
+*      TABLES
+*        t_outtab                 = it
+*      EXCEPTIONS
+*        program_error            = 1
+*        OTHERS                   = 2.
+*    IF sy-subrc <> 0.
+** Implement suitable error handling here
+*    ENDIF.
+
+
+*  IF wa-check = 'X' AND u = 'SAVE'.
+*    IF sy-subrc = 0.
+**      SELECT werks , matnr , charg , lgort , toloc , dt ,
+**        doc_no FROM it INTO CORRESPONDING FIELDS OF TABLE it_migo
+**        WHERE doc_no = it_migo-doc_no.
+*
+*    ENDIF.
+
+*    READ TABLE it_migo INTO wa_migo INDEX 1.
+*    LOOP AT it_migo INTO wa_migo.
+*
+*      MODIFY it_migo FROM wa_migo.
+*      CLEAR wa_migo.
+
+*    ENDLOOP.
+
+
+
+
+*    LEAVE TO SCREEN 0.
+
+
+
+
+
+
+
+
+*  cl_demo_output=>display( wa ).
+*     cl_demo_output=>display( lv_random ).
+
+*  ENDCASE.
+*ENDFORM.
